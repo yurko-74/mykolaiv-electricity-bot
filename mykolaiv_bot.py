@@ -4,7 +4,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from mykolaiv_utils import get_schedule_for_queue
 from mykolaiv_db import add_user, is_allowed
 
-TOKEN = "8221410645:AAEwCG0hqjKasHSSaX52j0QU7owvlSLN1FA"
+import os
+TOKEN = os.environ.get("TOKEN")
 
 KEYBOARD = [
     ["1.1", "1.2"],
@@ -47,3 +48,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
