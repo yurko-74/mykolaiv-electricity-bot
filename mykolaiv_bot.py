@@ -32,7 +32,7 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Ви не маєте доступу до цього бота.")
         return
 
-   queue = update.message.text.strip()
+    queue = update.message.text.strip()
 
     await update.message.reply_text(f"Отримав запит для черги: {queue}. Збираю дані...")
 
@@ -52,6 +52,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
