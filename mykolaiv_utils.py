@@ -2,7 +2,6 @@ import requests
 
 API_URL = "https://off.energy.mk.ua/api/schedule/time-series"
 
-# Переклад типів у зручний текст
 STATUS_MAP = {
     "ENABLE": "Є світло",
     "OFF": "Заплановане відключення",
@@ -13,23 +12,33 @@ STATUS_MAP = {
 def get_schedule_for_queue(queue):
     try:
         response = requests.get(API_URL, timeout=10)
+
+        print("STATUS CODE:", response.status_code)
+        print("RESPONSE TEXT:", response.text[:500])
+
+        if response.status_code != 200:
+            return f"API повернув статус {response.status_code}"
+
         data = response.json()
 
-        # Перевіряємо, чи є потрібна черга
-        if not data or "data" not in data:
-            return "Неможливо отримати дані з API"
+        print("PARSED JSON:", data)
 
-        schedule_rows = data["data"]
-        
-        # Формуємо текстовий графік
-        report_lines = []
-        report_lines.append(f"📅 Графік на сьогодні для черги {queue}:\n")
+        if not data:
+            return "API повернув порожні дані"
+
+        # можливо дані лежать в іншому полі
+        schedule_rows = data.get("data") or data
+
+        if not schedule_rows:
+            return f"Немає поля 'data' в API. Ключі: {list(data.keys())}"
+
+        report_lines = [f"📅 Графік на сьогодні для черги {queue}:\n"]
 
         for row in schedule_rows:
-            time = row.get("time", "??:??")
+            time = row.get("time")
             queue_info = row.get(queue)
 
-            if not queue_info:
+            if not time or not queue_info:
                 continue
 
             status_key = queue_info.get("type", "")
@@ -37,12 +46,10 @@ def get_schedule_for_queue(queue):
 
             report_lines.append(f"{time} — {status_text}")
 
-        # Якщо нічого не знайдено
-        if len(report_lines) <= 1:
-            return f"Дані для черги {queue} не знайдено."
+        if len(report_lines) == 1:
+            return f"Дані для черги {queue} відсутні в отриманому JSON"
 
         return "\n".join(report_lines)
 
     except Exception as e:
         return f"Помилка при отриманні даних: {e}"
-
