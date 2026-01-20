@@ -15,10 +15,7 @@ def get_schedule_for_queue(queue):
 
         text = response.text
 
-        return (
-            f"Дані з сайту отримано успішно для черги {queue}.\n"
-            f"Довжина відповіді: {len(text)} символів"
-        )
+        return f"Дані з сайту отримано успішно для черги {queue}. Довжина: {len(text)}"
 
     except Exception as e:
         return f"Помилка отримання даних: {e}"
