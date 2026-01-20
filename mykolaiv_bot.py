@@ -5,7 +5,7 @@ from mykolaiv_utils import get_schedule_for_queue
 from mykolaiv_db import add_user, is_allowed
 
 import os
-TOKEN = os.environ.get("TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")
 
 KEYBOARD = [
     ["1.1", "1.2"],
@@ -48,4 +48,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
