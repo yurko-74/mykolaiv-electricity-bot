@@ -1,21 +1,48 @@
 import requests
 
-URL = "https://off.energy.mk.ua/"
+API_URL = "https://off.energy.mk.ua/api/schedule/time-series"
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36"
+# Переклад типів у зручний текст
+STATUS_MAP = {
+    "ENABLE": "Є світло",
+    "OFF": "Заплановане відключення",
+    "SURE_OFF": "Актуальне відключення",
+    "PROBABLY_OFF": "Можливе відключення"
 }
 
 def get_schedule_for_queue(queue):
     try:
-        response = requests.get(URL, headers=HEADERS, timeout=15)
+        response = requests.get(API_URL, timeout=10)
+        data = response.json()
 
-        if response.status_code != 200:
-            return f"Помилка сайту: статус {response.status_code}"
+        # Перевіряємо, чи є потрібна черга
+        if not data or "data" not in data:
+            return "Неможливо отримати дані з API"
 
-        text = response.text
+        schedule_rows = data["data"]
+        
+        # Формуємо текстовий графік
+        report_lines = []
+        report_lines.append(f"📅 Графік на сьогодні для черги {queue}:\n")
 
-        return f"Дані з сайту отримано успішно для черги {queue}. Довжина: {len(text)}"
+        for row in schedule_rows:
+            time = row.get("time", "??:??")
+            queue_info = row.get(queue)
+
+            if not queue_info:
+                continue
+
+            status_key = queue_info.get("type", "")
+            status_text = STATUS_MAP.get(status_key, status_key)
+
+            report_lines.append(f"{time} — {status_text}")
+
+        # Якщо нічого не знайдено
+        if len(report_lines) <= 1:
+            return f"Дані для черги {queue} не знайдено."
+
+        return "\n".join(report_lines)
 
     except Exception as e:
-        return f"Помилка отримання даних: {e}"
+        return f"Помилка при отриманні даних: {e}"
+
