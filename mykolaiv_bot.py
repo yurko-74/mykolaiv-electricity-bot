@@ -26,19 +26,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    try:
+        user_id = update.effective_user.id
+        queue = update.message.text.strip()
 
-    if not is_allowed(user_id):
-        await update.message.reply_text("Ви не маєте доступу до цього бота.")
-        return
+        print(f"Отримано вибір черги: {queue} від користувача {user_id}")
 
-    queue = update.message.text.strip()
+        if not is_allowed(user_id):
+            await update.message.reply_text("Ви не маєте доступу до цього бота.")
+            return
 
-    await update.message.reply_text(f"Отримав запит для черги: {queue}. Збираю дані...")
+        await update.message.reply_text(f"Отримав запит для черги: {queue}. Збираю дані...")
 
-    schedule = get_schedule_for_queue(queue)
+        schedule = get_schedule_for_queue(queue)
 
-    await update.message.reply_text(schedule)
+        print(f"Результат schedule: {schedule}")
+
+        if not schedule:
+            await update.message.reply_text("Не вдалося отримати дані для цієї черги.")
+        else:
+            await update.message.reply_text(schedule)
+
+    except Exception as e:
+        error_text = f"Сталася помилка: {str(e)}"
+        print(error_text)
+        await update.message.reply_text(error_text)
 
 
 def main():
@@ -52,6 +64,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
