@@ -1,6 +1,6 @@
 import requests
 
-API_URL = "https://off.energy.mk.ua/api/schedule"
+API_URL = "https://off.energy.mk.ua/api/schedule/queue"
 
 STATUS_MAP = {
     "ENABLE": "Є світло",
@@ -53,4 +53,5 @@ def get_schedule_for_queue(queue):
 
     except Exception as e:
         return f"Помилка при отриманні даних: {e}"
+
 
