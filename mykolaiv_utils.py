@@ -1,5 +1,5 @@
 import requests
-from datetime import datetime, timezone
+from datetime import datetime
 
 BASE = "https://off.energy.mk.ua/api"
 
@@ -7,44 +7,40 @@ STATUS_MAP = {
     "OFF": "🔴 Світла немає",
     "SURE_OFF": "⛔ Аварійне відключення",
     "PROBABLY_OFF": "🟡 Можливе відключення",
-    "ENABLE": "🟢 Є світло"
+    "ENABLE": "🟢 Є світло",
 }
 
 def get_current_status(queue_name: str):
-    # 1. Отримуємо всі черги
-    r = requests.get(f"{BASE}/outage-queue/by-type/3", timeout=10)
-    queues = r.json()
-
+    # 1️⃣ черги
+    queues = requests.get(f"{BASE}/outage-queue/by-type/3", timeout=10).json()
     queue = next((q for q in queues if q["name"] == queue_name), None)
+
     if not queue:
-        return None, f"❌ Чергу {queue_name} не знайдено"
+        return None, None
 
     queue_id = queue["id"]
 
-    # 2. Часові інтервали
-    r = requests.get(f"{BASE}/schedule/time-series", timeout=10)
-    time_series = {t["id"]: t for t in r.json()}
+    # 2️⃣ time-series
+    time_series = requests.get(f"{BASE}/schedule/time-series", timeout=10).json()
 
-    # 3. Активний графік
-    r = requests.get(f"{BASE}/v2/schedule/active", timeout=10)
-    schedules = r.json()
+    now = datetime.now().strftime("%H:%M")
 
-    now = datetime.now(timezone.utc)
+    # 3️⃣ активний графік
+    schedules = requests.get(f"{BASE}/v2/schedule/active", timeout=10).json()
 
     for sch in schedules:
         for s in sch["series"]:
             if s["outage_queue_id"] != queue_id:
                 continue
 
-            ts = time_series.get(s["time_series_id"])
-            if not ts:
-                continue
+            ts = next(t for t in time_series if t["id"] == s["time_series_id"])
 
-            start = datetime.fromisoformat(ts["start"].replace("Z", "+00:00"))
-            end = datetime.fromisoformat(ts["end"].replace("Z", "+00:00"))
+            start = ts["start"][:5]   # "00:00"
+            end = ts["end"][:5]       # "00:30"
 
+            # ⏱ просте і надійне порівняння
             if start <= now < end:
-                status_code = s["type"]
-                return status_code, STATUS_MAP.get(status_code, status_code)
+                code = s["type"]
+                return code, STATUS_MAP.get(code)
 
     return "ENABLE", STATUS_MAP["ENABLE"]
