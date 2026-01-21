@@ -36,21 +36,52 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Ви не маєте доступу до цього бота.")
             return
 
-        await update.message.reply_text(f"Отримав запит для черги: {queue}. Збираю дані...")
+        selected = context.user_data.get("queues", [])
+
+        if queue in selected:
+            await update.message.reply_text(
+                f"ℹ️ Черга {queue} вже додана."
+            )
+            return
+
+        if len(selected) >= MAX_QUEUES:
+            await update.message.reply_text(
+                "⚠️ Можна обрати не більше двох черг.\n"
+                "Якщо потрібно змінити — просто напишіть /start"
+            )
+            return
+
+        selected.append(queue)
+        context.user_data["queues"] = selected
+
+        await update.message.reply_text(
+            f"✅ Чергу {queue} збережено.\n"
+            f"📡 Отримую графік..."
+        )
 
         schedule = get_schedule_for_queue(queue)
 
         print(f"Результат schedule: {schedule}")
 
-        if not schedule:
-            await update.message.reply_text("Не вдалося отримати дані для цієї черги.")
+        await update.message.reply_text(schedule)
+
+        if len(selected) == 1:
+            await update.message.reply_text(
+                "ℹ️ За потреби ви можете обрати **ще одну чергу**.\n"
+                "Або нічого не робіть — я буду надсилати інформацію для цієї.",
+                parse_mode="Markdown"
+            )
         else:
-            await update.message.reply_text(schedule)
+            await update.message.reply_text(
+                "✅ Обрано дві черги.\n"
+                "ℹ️ Для зміни вибору введіть /start"
+            )
 
     except Exception as e:
         error_text = f"Сталася помилка: {str(e)}"
         print(error_text)
         await update.message.reply_text(error_text)
+
 
 
 def main():
@@ -65,6 +96,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
