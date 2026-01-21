@@ -5,7 +5,7 @@ BASE = "https://off.energy.mk.ua/api"
 
 STATUS_MAP = {
     "OFF": "🔴 Світла немає",
-    "SURE_OFF": "⛔ Аварійне відключення",
+    "SURE_OFF": "⛔ Актуальне відключення",
     }
 
 
@@ -121,5 +121,6 @@ def get_schedule_for_queue(queue: str):
 
     except Exception as e:
         return None, f"❌ Помилка отримання графіка: {e}"
+
 
 
