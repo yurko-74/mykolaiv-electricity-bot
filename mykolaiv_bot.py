@@ -2,7 +2,7 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 from mykolaiv_utils import get_schedule_for_queue
-from mykolaiv_db import add_user, is_allowed
+from mykolaiv_db import init_db
 
 import os
 TOKEN = os.getenv("BOT_TOKEN")
@@ -60,10 +60,12 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_queue))
 
     print("Бот запущений...")
+    init_db()
     app.run_polling()
 
 if __name__ == "__main__":
     main()
+
 
 
 
