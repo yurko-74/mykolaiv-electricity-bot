@@ -8,7 +8,14 @@ from telegram.ext import (
 )
 
 from mykolaiv_utils import get_schedule_for_queue
-from mykolaiv_db import init_db, add_user, is_allowed
+from mykolaiv_db import (
+    init_db,
+    add_user,
+    is_allowed,
+    save_subscription,
+    get_subscriptions,
+    update_hash
+)
 
 import os
 
@@ -97,20 +104,18 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def check_updates(context: ContextTypes.DEFAULT_TYPE):
     bot = context.bot
-    users_data = context.bot_data.get("users", {})
+    subs = get_subscriptions()
 
-    for user_id, data in users_data.items():
-        queues = data.get("queues", [])
-        last = data.get("last_schedule", {})
+    for user_id, queue, old_hash in subs:
+        new_schedule = get_schedule_for_queue(queue)
+        new_hash = update_hash(user_id, queue, new_schedule)
 
-        for queue in queues:
-            new_schedule = get_schedule_for_queue(queue)
+        if new_hash != old_hash:
+            await bot.send_message(
+                chat_id=user_id,
+                text=f"🔔 Оновлення графіка для черги {queue}:\n\n{new_schedule}"
+            )
 
-            if last.get(queue) != new_schedule:
-                await bot.send_message(
-                    chat_id=user_id,
-                    text=f"🔔 Оновлення графіка для черги {queue}:\n\n{new_schedule}",
-                )
                 last[queue] = new_schedule
 
         data["last_schedule"] = last
@@ -132,3 +137,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
