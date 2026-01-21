@@ -100,25 +100,26 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(e)
         await update.message.reply_text(f"❌ Помилка: {e}")
-
-
 async def check_updates(context: ContextTypes.DEFAULT_TYPE):
     bot = context.bot
     subs = get_subscriptions()
 
-    for user_id, queue, old_hash in subs:
-        new_schedule = get_schedule_for_queue(queue)
-        new_hash = update_hash(user_id, queue, new_schedule)
+    for user_id, queue, last_state in subs:
+        schedule = get_schedule_for_queue(queue)
+        current_state = get_current_state(schedule)
 
-        if new_hash != old_hash:
+        # 🔔 тільки якщо СВІТЛО ЗʼЯВИЛОСЬ
+        if current_state == "ENABLE" and last_state != "ENABLE":
             await bot.send_message(
                 chat_id=user_id,
-                text=f"🔔 Оновлення графіка для черги {queue}:\n\n{new_schedule}"
+                text=f"✅ Світло зʼявилось\nЧерга {queue}"
             )
 
-                last[queue] = new_schedule
+        # зберігаємо новий стан
+        update_last_state(user_id, queue, current_state)
 
-        data["last_schedule"] = last
+
+
 
 
 def main():
@@ -137,4 +138,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
