@@ -1,57 +1,68 @@
 import requests
+from bs4 import BeautifulSoup
+from datetime import datetime
 
-API_URL = "https://off.energy.mk.ua/api/schedule/queue"
+URL = "https://off.energy.mk.ua/"
 
-STATUS_MAP = {
-    "ENABLE": "Є світло",
-    "OFF": "Заплановане відключення",
-    "SURE_OFF": "Актуальне відключення",
-    "PROBABLY_OFF": "Можливе відключення"
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
 }
 
-def get_schedule_for_queue(queue):
+# кольори, які означають ВІДКЛЮЧЕННЯ
+OFF_COLORS = ["#ff4d4d", "#ff9999", "red"]
+
+def get_schedule_for_queue(queue: str) -> str:
     try:
-        response = requests.get(API_URL, timeout=10)
+        response = requests.get(URL, headers=HEADERS, timeout=20)
+        response.raise_for_status()
 
-        print("STATUS CODE:", response.status_code)
-        print("RESPONSE TEXT:", response.text[:500])
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        if response.status_code != 200:
-            return f"API повернув статус {response.status_code}"
+        table = soup.find("table")
+        if not table:
+            return "❌ Не знайдено таблицю графіка"
 
-        data = response.json()
+        headers = table.find("thead").find_all("th")
+        queue_index = None
 
-        print("PARSED JSON:", data)
+        for i, th in enumerate(headers):
+            if queue in th.get_text(strip=True):
+                queue_index = i
+                break
 
-        if not data:
-            return "API повернув порожні дані"
+        if queue_index is None:
+            return f"❌ Чергу {queue} не знайдено"
 
-        # можливо дані лежать в іншому полі
-        schedule_rows = data.get("data") or data
+        now = datetime.now().time()
+        off_periods = []
 
-        if not schedule_rows:
-            return f"Немає поля 'data' в API. Ключі: {list(data.keys())}"
-
-        report_lines = [f"📅 Графік на сьогодні для черги {queue}:\n"]
-
-        for row in schedule_rows:
-            time = row.get("time")
-            queue_info = row.get(queue)
-
-            if not time or not queue_info:
+        for row in table.find("tbody").find_all("tr"):
+            cells = row.find_all("td")
+            if len(cells) <= queue_index:
                 continue
 
-            status_key = queue_info.get("type", "")
-            status_text = STATUS_MAP.get(status_key, status_key)
+            time_text = cells[0].get_text(strip=True)
+            try:
+                row_time = datetime.strptime(time_text, "%H:%M").time()
+            except ValueError:
+                continue
 
-            report_lines.append(f"{time} — {status_text}")
+            if row_time < now:
+                continue
 
-        if len(report_lines) == 1:
-            return f"Дані для черги {queue} відсутні в отриманому JSON"
+            cell = cells[queue_index]
+            style = cell.get("style", "").lower()
 
-        return "\n".join(report_lines)
+            if any(color in style for color in OFF_COLORS):
+                off_periods.append(time_text)
+
+        if not off_periods:
+            return f"✅ Для черги {queue} до кінця доби відключень не заплановано"
+
+        result = f"⚡ Відключення для черги {queue}:\n\n"
+        result += "\n".join(off_periods)
+
+        return result
 
     except Exception as e:
-        return f"Помилка при отриманні даних: {e}"
-
-
+        return f"❌ Помилка: {e}"
