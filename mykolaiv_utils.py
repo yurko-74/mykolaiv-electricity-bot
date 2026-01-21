@@ -1,68 +1,37 @@
 import requests
-from bs4 import BeautifulSoup
-from datetime import datetime
 
-URL = "https://off.energy.mk.ua/"
+BASE = "https://off.energy.mk.ua/api"
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0"
-}
+def get_schedule_for_queue(queue_name: str) -> str:
+    # 1. Отримуємо всі черги
+    r = requests.get(f"{BASE}/outage-queue/by-type/3", timeout=10)
+    queues = r.json()
 
-# кольори, які означають ВІДКЛЮЧЕННЯ
-OFF_COLORS = ["#ff4d4d", "#ff9999", "red"]
+    queue = next((q for q in queues if q["name"] == queue_name), None)
+    if not queue:
+        return f"❌ Чергу {queue_name} не знайдено"
 
-def get_schedule_for_queue(queue: str) -> str:
-    try:
-        response = requests.get(URL, headers=HEADERS, timeout=20)
-        response.raise_for_status()
+    queue_id = queue["id"]
 
-        soup = BeautifulSoup(response.text, "html.parser")
+    # 2. Часові інтервали
+    r = requests.get(f"{BASE}/schedule/time-series", timeout=10)
+    times = {t["id"]: f'{t["start"][:5]}–{t["end"][:5]}' for t in r.json()}
 
-        table = soup.find("table")
-        if not table:
-            return "❌ Не знайдено таблицю графіка"
+    # 3. Активний графік
+    r = requests.get(f"{BASE}/v2/schedule/active", timeout=10)
+    schedules = r.json()
 
-        headers = table.find("thead").find_all("th")
-        queue_index = None
+    result = []
 
-        for i, th in enumerate(headers):
-            if queue in th.get_text(strip=True):
-                queue_index = i
-                break
+    for sch in schedules:
+        for s in sch["series"]:
+            if s["outage_queue_id"] == queue_id:
+                time = times.get(s["time_series_id"], "??")
+                result.append(f"{time} — {s['type']}")
 
-        if queue_index is None:
-            return f"❌ Чергу {queue} не знайдено"
+    if not result:
+        return f"ℹ️ Для черги {queue_name} наразі немає відключень"
 
-        now = datetime.now().time()
-        off_periods = []
-
-        for row in table.find("tbody").find_all("tr"):
-            cells = row.find_all("td")
-            if len(cells) <= queue_index:
-                continue
-
-            time_text = cells[0].get_text(strip=True)
-            try:
-                row_time = datetime.strptime(time_text, "%H:%M").time()
-            except ValueError:
-                continue
-
-            if row_time < now:
-                continue
-
-            cell = cells[queue_index]
-            style = cell.get("style", "").lower()
-
-            if any(color in style for color in OFF_COLORS):
-                off_periods.append(time_text)
-
-        if not off_periods:
-            return f"✅ Для черги {queue} до кінця доби відключень не заплановано"
-
-        result = f"⚡ Відключення для черги {queue}:\n\n"
-        result += "\n".join(off_periods)
-
-        return result
-
-    except Exception as e:
-        return f"❌ Помилка: {e}"
+    text = f"🔌 Графік для черги {queue_name}:\n\n"
+    text += "\n".join(sorted(result))
+    return text
