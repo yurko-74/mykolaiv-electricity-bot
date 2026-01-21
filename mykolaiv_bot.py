@@ -68,10 +68,12 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ✅ показуємо ТІЛЬКИ поточний статус
         status_code, status_text = get_current_status(queue)
 
+        # ✅ при ручному виборі — показуємо статус завжди
         if status_text:
-            await update.message.reply_text(
-                f"{status_text}\nЧерга {queue}"
-            )
+            await update.message.reply_text(f"{status_text}\nЧерга {queue}")
+        else:
+            await update.message.reply_text(f"🟢 Є світло\nЧерга {queue}")
+
 
         if len(selected) == 1:
             await update.message.reply_text(
@@ -103,3 +105,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
