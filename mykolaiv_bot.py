@@ -8,14 +8,9 @@ from telegram.ext import (
 )
 
 from mykolaiv_utils import get_current_status
-from mykolaiv_db import (
-    init_db,
-    add_user,
-    is_allowed,
-)
+from mykolaiv_db import init_db, add_user, is_allowed
 
 import os
-
 
 TOKEN = os.getenv("BOT_TOKEN")
 MAX_QUEUES = 2
@@ -94,25 +89,6 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Помилка: {e}")
 
 
-async def notify_if_status_changed(chat_id, queue):
-    status_code, status_text = get_current_status(queue)
-
-    if not status_text:
-        return
-
-    last_status = USER_LAST_STATUS.get(chat_id)
-
-    if last_status == status_code:
-        return  # ❌ статус не змінився — мовчимо
-
-    USER_LAST_STATUS[chat_id] = status_code
-
-    await bot.send_message(
-        chat_id=chat_id,
-        text=f"{status_text}\nЧерга {queue}"
-    )
-
-
 def main():
     init_db()
 
@@ -121,18 +97,9 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_queue))
 
-    # ❗ тільки якщо встановлено job-queue
-    app.job_queue.run_repeating(check_updates, interval=300, first=20)
-
     print("🤖 Бот запущений")
     app.run_polling()
 
 
-
 if __name__ == "__main__":
     main()
-
-
-
-
-
