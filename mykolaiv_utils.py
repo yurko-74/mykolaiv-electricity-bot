@@ -68,7 +68,7 @@ def get_current_status(queue_name: str):
 
                 return code, STATUS_MAP.get(code)
 
-    return "ENABLE", "🟢 Є світло"
+    return "UNKNOWN", "🟡 Статус невизначений (можливе відключення)"
 
 
 # =========================================================
@@ -121,3 +121,4 @@ def get_schedule_for_queue(queue: str):
 
     except Exception as e:
         return None, f"❌ Помилка отримання графіка: {e}"
+
