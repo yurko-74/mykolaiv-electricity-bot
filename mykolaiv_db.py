@@ -1,133 +1,68 @@
 import sqlite3
+import hashlib
 
-DB_NAME = "bot.db"
-
-
-def get_conn():
-    return sqlite3.connect(DB_NAME)
+DB = "bot.db"
 
 
 def init_db():
-    conn = get_conn()
-    cur = conn.cursor()
+    with sqlite3.connect(DB) as con:
+        cur = con.cursor()
 
-    # користувачі
-    cur.execute("""
+        cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY
         )
-    """)
+        """)
 
-    # черги користувачів
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS user_queues (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS subscriptions (
             user_id INTEGER,
             queue TEXT,
-            UNIQUE(user_id, queue)
+            last_hash TEXT,
+            PRIMARY KEY (user_id, queue)
         )
-    """)
+        """)
 
-    conn.commit()
-    conn.close()
+        con.commit()
 
-
-# ---------- USERS ----------
 
 def add_user(user_id: int):
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute(
-        "INSERT OR IGNORE INTO users (user_id) VALUES (?)",
-        (user_id,)
-    )
-
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB) as con:
+        con.execute(
+            "INSERT OR IGNORE INTO users(user_id) VALUES (?)",
+            (user_id,)
+        )
 
 
 def is_allowed(user_id: int) -> bool:
-    # поки дозволяємо всім
-    return True
+    return True  # 🔒 якщо буде whitelist — зробимо
 
 
-# ---------- QUEUES ----------
-
-def add_queue(user_id: int, queue: str) -> bool:
-    """
-    Додає чергу користувачу.
-    Повертає False, якщо вже 2 черги
-    """
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute(
-        "SELECT COUNT(*) FROM user_queues WHERE user_id = ?",
-        (user_id,)
-    )
-    count = cur.fetchone()[0]
-
-    if count >= 2:
-        conn.close()
-        return False
-
-    cur.execute(
-        "INSERT OR IGNORE INTO user_queues (user_id, queue) VALUES (?, ?)",
-        (user_id, queue)
-    )
-
-    conn.commit()
-    conn.close()
-    return True
+def save_subscription(user_id: int, queue: str):
+    with sqlite3.connect(DB) as con:
+        con.execute("""
+        INSERT OR IGNORE INTO subscriptions (user_id, queue, last_hash)
+        VALUES (?, ?, '')
+        """, (user_id, queue))
 
 
-def get_user_queues(user_id: int) -> list[str]:
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute(
-        "SELECT queue FROM user_queues WHERE user_id = ?",
-        (user_id,)
-    )
-
-    rows = cur.fetchall()
-    conn.close()
-
-    return [r[0] for r in rows]
+def get_subscriptions():
+    with sqlite3.connect(DB) as con:
+        cur = con.cursor()
+        cur.execute("""
+        SELECT user_id, queue, last_hash FROM subscriptions
+        """)
+        return cur.fetchall()
 
 
-def clear_user_queues(user_id: int):
-    conn = get_conn()
-    cur = conn.cursor()
+def update_hash(user_id: int, queue: str, text: str):
+    h = hashlib.sha256(text.encode()).hexdigest()
 
-    cur.execute(
-        "DELETE FROM user_queues WHERE user_id = ?",
-        (user_id,)
-    )
+    with sqlite3.connect(DB) as con:
+        con.execute("""
+        UPDATE subscriptions
+        SET last_hash = ?
+        WHERE user_id = ? AND queue = ?
+        """, (h, user_id, queue))
 
-    conn.commit()
-    conn.close()
-
-
-def get_all_users_with_queues() -> dict:
-    """
-    { user_id: [queue1, queue2] }
-    """
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT user_id, queue
-        FROM user_queues
-        ORDER BY user_id
-    """)
-
-    rows = cur.fetchall()
-    conn.close()
-
-    result = {}
-    for user_id, queue in rows:
-        result.setdefault(user_id, []).append(queue)
-
-    return result
+    return h
