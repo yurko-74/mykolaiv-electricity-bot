@@ -94,36 +94,23 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Помилка: {e}")
 
 
-async def check_updates(context: ContextTypes.DEFAULT_TYPE):
-    bot = context.bot
-    users_data = context.bot_data.get("users", {})
+async def notify_if_status_changed(chat_id, queue):
+    status_code, status_text = get_current_status(queue)
 
-    for user_id, data in users_data.items():
-        queues = data.get("queues", [])
-        last_status = data.get("last_status", {})
+    if not status_text:
+        return
 
-        for queue in queues:
-            status_code, status_text = get_current_status(queue)
+    last_status = USER_LAST_STATUS.get(chat_id)
 
-            if status_code is None:
-                continue
+    if last_status == status_code:
+        return  # ❌ статус не змінився — мовчимо
 
-            if last_status.get(queue) == status_code:
-                continue
+    USER_LAST_STATUS[chat_id] = status_code
 
-            if status_code == "PROBABLY_OFF":
-                last_status[queue] = status_code
-                continue
-
-            await bot.send_message(
-                chat_id=user_id,
-                text=f"{status_text}\nЧерга {queue}"
-            )
-
-            last_status[queue] = status_code
-
-        data["last_status"] = last_status
-
+    await bot.send_message(
+        chat_id=chat_id,
+        text=f"{status_text}\nЧерга {queue}"
+    )
 
 
 def main():
@@ -144,6 +131,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
