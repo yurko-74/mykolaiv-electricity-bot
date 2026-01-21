@@ -109,9 +109,8 @@ async def check_updates(context: ContextTypes.DEFAULT_TYPE):
                 continue
 
             if last_status.get(queue) == status_code:
-                continue  # ❗ нічого не змінилось
+                continue
 
-            # ❗ НЕ шлемо PROBABLY_OFF
             if status_code == "PROBABLY_OFF":
                 last_status[queue] = status_code
                 continue
@@ -127,8 +126,6 @@ async def check_updates(context: ContextTypes.DEFAULT_TYPE):
 
 
 
-
-
 def main():
     init_db()
 
@@ -137,14 +134,17 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_queue))
 
+    # ❗ тільки якщо встановлено job-queue
     app.job_queue.run_repeating(check_updates, interval=300, first=20)
 
     print("🤖 Бот запущений")
     app.run_polling()
 
 
+
 if __name__ == "__main__":
     main()
+
 
 
 
