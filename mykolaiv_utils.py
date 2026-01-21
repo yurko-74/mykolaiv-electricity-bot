@@ -18,19 +18,22 @@ def get_current_status(queue_name: str):
     queue_id = queue["id"]
 
     time_series = requests.get(f"{BASE}/schedule/time-series", timeout=10).json()
-    ts_map = {t["id"]: (t["start"][:5], t["end"][:5]) for t in time_series}
+    ts_map = {
+        t["id"]: (t["start"][:5], t["end"][:5])
+        for t in time_series
+    }
 
     schedules = requests.get(f"{BASE}/v2/schedule/active", timeout=10).json()
 
-    # ⏰ локальний час (UA ≈ UTC+2, без літнього часу врахуємо +2)
-    now_local = datetime.utcnow() + timedelta(hours=2)
-    now_time = now_local.strftime("%H:%M")
+    # ✅ AWARE UTC
+    now_utc = datetime.now(timezone.utc)
+    now_time = now_utc.astimezone(timezone(timedelta(hours=2))).strftime("%H:%M")
 
     for sch in schedules:
         start = datetime.fromisoformat(sch["from"].replace("Z", "+00:00"))
         end = datetime.fromisoformat(sch["to"].replace("Z", "+00:00"))
 
-        if not (start <= datetime.utcnow() <= end):
+        if not (start <= now_utc <= end):
             continue
 
         for s in sch["series"]:
@@ -47,9 +50,8 @@ def get_current_status(queue_name: str):
                 code = s["type"]
 
                 if code == "PROBABLY_OFF":
-                    return code, None  # ❗ не шлемо
+                    return code, None
 
                 return code, STATUS_MAP.get(code)
 
-    # 👉 якщо нічого не знайшли — світло є
     return "ENABLE", "🟢 Є світло"
