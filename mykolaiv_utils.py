@@ -1,64 +1,85 @@
 import requests
+from datetime import datetime
 
 BASE = "https://off.energy.mk.ua/api"
-TIMEOUT = 10
+
+
+def parse_time(t: str) -> int:
+    """HH:MM -> minutes from 00:00"""
+    h, m = map(int, t.split(":"))
+    return h * 60 + m
+
+
+def format_time(minutes: int) -> str:
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def group_intervals(intervals: list[tuple[int, int, str]]) -> list[str]:
+    """
+    (start_min, end_min, type) -> grouped text
+    """
+    if not intervals:
+        return []
+
+    intervals.sort()
+    result = []
+
+    cur_start, cur_end, cur_type = intervals[0]
+
+    for start, end, typ in intervals[1:]:
+        if start == cur_end and typ == cur_type:
+            cur_end = end
+        else:
+            result.append(
+                f"{format_time(cur_start)}–{format_time(cur_end)} — {cur_type}"
+            )
+            cur_start, cur_end, cur_type = start, end, typ
+
+    result.append(
+        f"{format_time(cur_start)}–{format_time(cur_end)} — {cur_type}"
+    )
+
+    return result
 
 
 def get_schedule_for_queue(queue_name: str) -> str:
-    # === 1. Отримуємо черги (тип 3 = ГПВ) ===
-    try:
-        r = requests.get(f"{BASE}/outage-queue/by-type/3", timeout=TIMEOUT)
-        r.raise_for_status()
-        data = r.json()
-    except Exception as e:
-        return f"❌ Помилка отримання черг: {e}"
+    # 1️⃣ Черги
+    r = requests.get(f"{BASE}/outage-queue/by-type/3", timeout=10)
+    queues = r.json()
 
-    # API може повернути або список, або {"data": [...]}
-    queues = data["data"] if isinstance(data, dict) and "data" in data else data
-
-    queue = next((q for q in queues if q.get("name") == queue_name), None)
+    queue = next((q for q in queues if q["name"] == queue_name), None)
     if not queue:
         return f"❌ Чергу {queue_name} не знайдено"
 
     queue_id = queue["id"]
 
-    # === 2. Часові інтервали ===
-    try:
-        r = requests.get(f"{BASE}/schedule/time-series", timeout=TIMEOUT)
-        r.raise_for_status()
-        time_series = r.json()
-    except Exception as e:
-        return f"❌ Помилка отримання часових інтервалів: {e}"
+    # 2️⃣ Часові серії
+    r = requests.get(f"{BASE}/schedule/time-series", timeout=10)
+    time_series = {}
 
-    times = {
-        t["id"]: f'{t["start"][:5]}–{t["end"][:5]}'
-        for t in time_series
-    }
+    for t in r.json():
+        start = t["start"][:5]
+        end = t["end"][:5]
+        time_series[t["id"]] = (parse_time(start), parse_time(end))
 
-    # === 3. Активний графік ===
-    try:
-        r = requests.get(f"{BASE}/v2/schedule/active", timeout=TIMEOUT)
-        r.raise_for_status()
-        schedules = r.json()
-    except Exception as e:
-        return f"❌ Помилка отримання графіку: {e}"
+    # 3️⃣ Активний графік
+    r = requests.get(f"{BASE}/v2/schedule/active", timeout=10)
+    schedules = r.json()
 
-    result = []
+    intervals = []
 
     for sch in schedules:
-        for s in sch.get("series", []):
-            if s.get("outage_queue_id") == queue_id:
-                time = times.get(s.get("time_series_id"), "??:??")
-                status = s.get("type", "UNKNOWN")
-                result.append(f"{time} — {status}")
+        for s in sch["series"]:
+            if s["outage_queue_id"] == queue_id:
+                ts = time_series.get(s["time_series_id"])
+                if ts:
+                    intervals.append((ts[0], ts[1], s["type"]))
 
-    if not result:
+    if not intervals:
         return f"ℹ️ Для черги {queue_name} наразі немає відключень"
 
-    # Сортуємо по часу
-    result.sort()
+    grouped = group_intervals(intervals)
 
     text = f"🔌 Графік для черги {queue_name}:\n\n"
-    text += "\n".join(result)
-
+    text += "\n".join(grouped)
     return text
