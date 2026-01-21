@@ -7,17 +7,15 @@ from telegram.ext import (
     filters,
 )
 
-from mykolaiv_utils import get_schedule_for_queue
+from mykolaiv_utils import get_current_status
 from mykolaiv_db import (
     init_db,
     add_user,
     is_allowed,
-    save_subscription,
-    get_subscriptions,
-    update_hash
 )
 
 import os
+
 
 TOKEN = os.getenv("BOT_TOKEN")
 MAX_QUEUES = 2
@@ -68,28 +66,22 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # 👉 ЗБЕРІГАЄМО ВИБІР КОРИСТУВАЧА
+        # ✅ зберігаємо вибір
         selected.append(queue)
         context.user_data["queues"] = selected
 
-        # 👉 КЛЮЧОВИЙ КРОК 3 — реєструємо користувача для фонового моніторингу
-        users = context.application.bot_data.setdefault("users", {})
-        users[user_id] = {
-            "queues": selected,
-            "last_schedule": {},
-        }
+        # ✅ показуємо ТІЛЬКИ поточний статус
+        status_code, status_text = get_current_status(queue)
 
-        await update.message.reply_text(
-            f"✅ Чергу {queue} збережено.\n📡 Отримую графік..."
-        )
-
-        schedule = get_schedule_for_queue(queue)
-        await update.message.reply_text(schedule)
+        if status_text:
+            await update.message.reply_text(
+                f"{status_text}\nЧерга {queue}"
+            )
 
         if len(selected) == 1:
             await update.message.reply_text(
                 "ℹ️ За потреби ви можете обрати **ще одну чергу**.\n"
-                "Або нічого не робіть — я сам повідомлятиму про зміни.",
+                "Або нічого не робіть — я повідомлятиму лише про зміни.",
                 parse_mode="Markdown",
             )
         else:
@@ -100,23 +92,38 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(e)
         await update.message.reply_text(f"❌ Помилка: {e}")
+
+
 async def check_updates(context: ContextTypes.DEFAULT_TYPE):
     bot = context.bot
-    subs = get_subscriptions()
+    users_data = context.bot_data.get("users", {})
 
-    for user_id, queue, last_state in subs:
-        schedule = get_schedule_for_queue(queue)
-        current_state = get_current_state(schedule)
+    for user_id, data in users_data.items():
+        queues = data.get("queues", [])
+        last_status = data.get("last_status", {})
 
-        # 🔔 тільки якщо СВІТЛО ЗʼЯВИЛОСЬ
-        if current_state == "ENABLE" and last_state != "ENABLE":
+        for queue in queues:
+            status_code, status_text = get_current_status(queue)
+
+            if status_code is None:
+                continue
+
+            if last_status.get(queue) == status_code:
+                continue  # ❗ нічого не змінилось
+
+            # ❗ НЕ шлемо PROBABLY_OFF
+            if status_code == "PROBABLY_OFF":
+                last_status[queue] = status_code
+                continue
+
             await bot.send_message(
                 chat_id=user_id,
-                text=f"✅ Світло зʼявилось\nЧерга {queue}"
+                text=f"{status_text}\nЧерга {queue}"
             )
 
-        # зберігаємо новий стан
-        update_last_state(user_id, queue, current_state)
+            last_status[queue] = status_code
+
+        data["last_status"] = last_status
 
 
 
@@ -138,5 +145,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
