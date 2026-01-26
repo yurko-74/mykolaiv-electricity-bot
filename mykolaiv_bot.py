@@ -6,6 +6,7 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+from datetime import datetime, time
 
 from mykolaiv_utils import get_current_status
 from mykolaiv_db import init_db, add_user, is_allowed
@@ -22,6 +23,15 @@ KEYBOARD = [
     ["5.1", "5.2"],
     ["6.1", "6.2"],
 ]
+
+
+def format_table(start_time: str, end_time: str, status: str) -> str:
+    return (
+        "📊 *Графік на сьогодні*\n\n"
+        "| Період | Статус |\n"
+        "|--------|--------|\n"
+        f"| {start_time} – {end_time} | {status} |"
+    )
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -46,19 +56,13 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     subs = context.bot_data.setdefault("subscriptions", {})
     subs.setdefault(user_id, set()).add(queue)
 
-    status_code, status_text = get_current_status(queue)
-
-    if status_text:
-        await update.message.reply_text(f"{status_text}\nЧерга {queue}")
-
-    if len(subs[user_id]) == 1:
-        await update.message.reply_text(
-            "ℹ️ За потреби ви можете обрати ще одну чергу.\n"
-            "Або нічого не робіть — я повідомлятиму лише про зміни."
-        )
+    await update.message.reply_text(
+        f"✅ Черга {queue} додана.\n"
+        "Я повідомлятиму про зміни та надсилатиму ранковий графік."
+    )
 
 
-async def check_updates(context: ContextTypes.DEFAULT_TYPE):
+async def morning_report(context: ContextTypes.DEFAULT_TYPE):
     bot = context.bot
     subs = context.bot_data.get("subscriptions", {})
     last = context.bot_data.setdefault("last_status", {})
@@ -68,19 +72,44 @@ async def check_updates(context: ContextTypes.DEFAULT_TYPE):
 
         for queue in queues:
             status_code, status_text = get_current_status(queue)
-
-            if not status_code:
+            if not status_text:
                 continue
 
-            if status_code == "PROBABLY_OFF":
+            table = format_table("05:00", "23:59", status_text)
+
+            await bot.send_message(
+                chat_id=user_id,
+                text=f"{table}\n\nЧерга {queue}",
+                parse_mode="Markdown"
+            )
+
+            user_last[queue] = status_code
+
+
+async def check_updates(context: ContextTypes.DEFAULT_TYPE):
+    bot = context.bot
+    subs = context.bot_data.get("subscriptions", {})
+    last = context.bot_data.setdefault("last_status", {})
+
+    now = datetime.now().strftime("%H:%M")
+
+    for user_id, queues in subs.items():
+        user_last = last.setdefault(user_id, {})
+
+        for queue in queues:
+            status_code, status_text = get_current_status(queue)
+            if not status_code:
                 continue
 
             if user_last.get(queue) == status_code:
                 continue
 
+            table = format_table(now, "23:59", status_text)
+
             await bot.send_message(
                 chat_id=user_id,
-                text=f"{status_text}\nЧерга {queue}"
+                text=f"{table}\n\nЧерга {queue}",
+                parse_mode="Markdown"
             )
 
             user_last[queue] = status_code
@@ -94,10 +123,17 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_queue))
 
+    # 🔁 Перевірка змін кожні 20 хв
     app.job_queue.run_repeating(
         check_updates,
-        interval=1200,  # 20 хв
-        first=30
+        interval=1200,
+        first=60
+    )
+
+    # 🌅 Ранковий звіт о 05:00
+    app.job_queue.run_daily(
+        morning_report,
+        time=time(hour=5, minute=0)
     )
 
     print("🤖 Бот запущений")
@@ -106,4 +142,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
