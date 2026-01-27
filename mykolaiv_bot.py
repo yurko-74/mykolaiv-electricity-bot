@@ -8,7 +8,7 @@ from telegram.ext import (
 )
 from datetime import datetime, time
 
-from mykolaiv_utils import get_current_status
+from mykolaiv_utils import get_current_status, get_day_schedule
 from mykolaiv_db import init_db, add_user, is_allowed
 
 import os
@@ -25,13 +25,25 @@ KEYBOARD = [
 ]
 
 
-def format_table(start_time: str, end_time: str, status: str) -> str:
-    return (
-        "📊 *Графік на сьогодні*\n\n"
-        "| Період | Статус |\n"
-        "|--------|--------|\n"
-        f"| {start_time} – {end_time} | {status} |"
-    )
+def format_day_table(periods: list) -> str:
+    """
+    periods = [
+        ("05:00", "07:30", "🟥 Відключено"),
+        ("07:30", "11:00", "🟩 Є світло"),
+        ...
+    ]
+    """
+    lines = [
+        "📊 *Графік на сьогодні*",
+        "",
+        "| Період | Статус |",
+        "|--------|--------|",
+    ]
+
+    for start, end, status in periods:
+        lines.append(f"| {start} – {end} | {status} |")
+
+    return "\n".join(lines)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -54,28 +66,32 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     subs = context.bot_data.setdefault("subscriptions", {})
-    subs.setdefault(user_id, set()).add(queue)
+    user_queues = subs.setdefault(user_id, set())
 
-    await update.message.reply_text(
-        f"✅ Черга {queue} додана.\n"
-        "Я повідомлятиму про зміни та надсилатиму ранковий графік."
-    )
+    is_first = len(user_queues) == 0
+    user_queues.add(queue)
+
+    await update.message.reply_text(f"✅ Черга {queue} додана.")
+
+    if is_first:
+        await update.message.reply_text(
+            "ℹ️ За потреби ви можете обрати ще одну чергу.\n"
+            "Або нічого не робіть — я повідомлятиму лише про зміни."
+        )
 
 
 async def morning_report(context: ContextTypes.DEFAULT_TYPE):
     bot = context.bot
     subs = context.bot_data.get("subscriptions", {})
-    last = context.bot_data.setdefault("last_status", {})
 
     for user_id, queues in subs.items():
-        user_last = last.setdefault(user_id, {})
-
         for queue in queues:
-            status_code, status_text = get_current_status(queue)
-            if not status_text:
+            periods = get_day_schedule(queue, start="05:00", end="23:59")
+
+            if not periods:
                 continue
 
-            table = format_table("05:00", "23:59", status_text)
+            table = format_day_table(periods)
 
             await bot.send_message(
                 chat_id=user_id,
@@ -83,33 +99,27 @@ async def morning_report(context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown"
             )
 
-            user_last[queue] = status_code
-
 
 async def check_updates(context: ContextTypes.DEFAULT_TYPE):
     bot = context.bot
     subs = context.bot_data.get("subscriptions", {})
     last = context.bot_data.setdefault("last_status", {})
 
-    now = datetime.now().strftime("%H:%M")
-
     for user_id, queues in subs.items():
         user_last = last.setdefault(user_id, {})
 
         for queue in queues:
             status_code, status_text = get_current_status(queue)
+
             if not status_code:
                 continue
 
             if user_last.get(queue) == status_code:
                 continue
 
-            table = format_table(now, "23:59", status_text)
-
             await bot.send_message(
                 chat_id=user_id,
-                text=f"{table}\n\nЧерга {queue}",
-                parse_mode="Markdown"
+                text=f"{status_text}\nЧерга {queue}"
             )
 
             user_last[queue] = status_code
