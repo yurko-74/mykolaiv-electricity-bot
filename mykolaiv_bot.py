@@ -6,7 +6,15 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
-from datetime import datetime, time
+from datetime import time
+from pytz import timezone
+
+KYIV_TZ = timezone("Europe/Kyiv")
+
+app.job_queue.run_daily(
+    morning_report,
+    time=time(hour=5, minute=0, tzinfo=KYIV_TZ)
+)
 
 from mykolaiv_utils import get_current_status, get_day_schedule
 from mykolaiv_db import init_db, add_user, is_allowed
@@ -140,7 +148,7 @@ def main():
     init_db()
 
     app = (
-        Application.builder().token(TOKEN).timezone(timezone("Europe/Kyiv")).build()
+        Application.builder().token(TOKEN).build()
     )
 
     app.add_handler(CommandHandler("start", start))
@@ -165,6 +173,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
