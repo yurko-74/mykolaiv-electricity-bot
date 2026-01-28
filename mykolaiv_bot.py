@@ -68,16 +68,27 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     subs = context.bot_data.setdefault("subscriptions", {})
     user_queues = subs.setdefault(user_id, set())
 
-    is_first = len(user_queues) == 0
+    if queue in user_queues:
+        await update.message.reply_text(
+            f"ℹ️ Черга {queue} вже додана.\n"
+            "Можете обрати ще одну або використати /reset"
+        )
+        return
+
     user_queues.add(queue)
 
-    await update.message.reply_text(f"✅ Черга {queue} додана.")
+    msg = f"✅ Черга {queue} додана.\n"
 
-    if is_first:
-        await update.message.reply_text(
-            "ℹ️ За потреби ви можете обрати ще одну чергу.\n"
-            "Або нічого не робіть — я повідомлятиму лише про зміни."
+    if len(user_queues) == 1:
+        msg += (
+            "👉 Ви можете обрати **ще одну чергу**.\n"
+            "Якщо потрібно почати спочатку — введіть /reset"
         )
+    else:
+        msg += "ℹ️ Я повідомлятиму про зміни по всіх обраних чергах."
+
+    await update.message.reply_text(msg)
+
 
 
 async def morning_report(context: ContextTypes.DEFAULT_TYPE):
@@ -154,5 +165,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
