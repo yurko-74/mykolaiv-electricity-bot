@@ -8,20 +8,16 @@ from telegram.ext import (
 )
 from datetime import time
 from pytz import timezone
-
-KYIV_TZ = timezone("Europe/Kyiv")
-
-app.job_queue.run_daily(
-    morning_report,
-    time=time(hour=5, minute=0, tzinfo=KYIV_TZ)
-)
+import os
 
 from mykolaiv_utils import get_current_status, get_day_schedule
 from mykolaiv_db import init_db, add_user, is_allowed
 
-import os
-
+# ======================
+# НАЛАШТУВАННЯ
+# ======================
 TOKEN = os.getenv("BOT_TOKEN")
+KYIV_TZ = timezone("Europe/Kyiv")
 
 KEYBOARD = [
     ["1.1", "1.2"],
@@ -32,15 +28,10 @@ KEYBOARD = [
     ["6.1", "6.2"],
 ]
 
-
+# ======================
+# ДОПОМІЖНІ ФУНКЦІЇ
+# ======================
 def format_day_table(periods: list) -> str:
-    """
-    periods = [
-        ("05:00", "07:30", "🟥 Відключено"),
-        ("07:30", "11:00", "🟩 Є світло"),
-        ...
-    ]
-    """
     lines = [
         "📊 *Графік на сьогодні*",
         "",
@@ -53,7 +44,9 @@ def format_day_table(periods: list) -> str:
 
     return "\n".join(lines)
 
-
+# ======================
+# HANDLERS
+# ======================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     add_user(user.id)
@@ -79,7 +72,7 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if queue in user_queues:
         await update.message.reply_text(
             f"ℹ️ Черга {queue} вже додана.\n"
-            "Можете обрати ще одну або використати /reset"
+            "Можете обрати ще одну або скористатись /reset"
         )
         return
 
@@ -90,7 +83,7 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(user_queues) == 1:
         msg += (
             "👉 Ви можете обрати **ще одну чергу**.\n"
-            "Якщо потрібно почати спочатку — введіть /reset"
+            "Щоб почати спочатку — введіть /reset"
         )
     else:
         msg += "ℹ️ Я повідомлятиму про зміни по всіх обраних чергах."
@@ -98,7 +91,19 @@ async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg)
 
 
+async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.bot_data.get("subscriptions", {}).pop(update.effective_user.id, None)
+    context.bot_data.get("last_status", {}).pop(update.effective_user.id, None)
 
+    await update.message.reply_text(
+        "🔄 Черги скинуто.\nОберіть нову чергу:",
+        reply_markup=ReplyKeyboardMarkup(KEYBOARD, resize_keyboard=True),
+    )
+
+
+# ======================
+# JOBS
+# ======================
 async def morning_report(context: ContextTypes.DEFAULT_TYPE):
     bot = context.bot
     subs = context.bot_data.get("subscriptions", {})
@@ -106,7 +111,6 @@ async def morning_report(context: ContextTypes.DEFAULT_TYPE):
     for user_id, queues in subs.items():
         for queue in queues:
             periods = get_day_schedule(queue, start="05:00", end="23:59")
-
             if not periods:
                 continue
 
@@ -129,7 +133,6 @@ async def check_updates(context: ContextTypes.DEFAULT_TYPE):
 
         for queue in queues:
             status_code, status_text = get_current_status(queue)
-
             if not status_code:
                 continue
 
@@ -144,12 +147,16 @@ async def check_updates(context: ContextTypes.DEFAULT_TYPE):
             user_last[queue] = status_code
 
 
+# ======================
+# MAIN
+# ======================
 def main():
     init_db()
 
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("reset", reset))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_queue))
 
     # 🔁 Перевірка змін кожні 20 хв
@@ -159,21 +166,15 @@ def main():
         first=60
     )
 
-    # 🌅 Ранковий звіт о 05:00
+    # 🌅 Ранковий звіт о 05:00 (Київ)
     app.job_queue.run_daily(
         morning_report,
-        time=time(hour=5, minute=0)
+        time=time(hour=5, minute=0, tzinfo=KYIV_TZ)
     )
 
     print("🤖 Бот запущений")
     app.run_polling()
 
 
-
 if __name__ == "__main__":
     main()
-
-
-
-
-
