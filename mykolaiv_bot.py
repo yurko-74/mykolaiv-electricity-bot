@@ -154,26 +154,28 @@ def main():
     init_db()
 
     app = Application.builder().token(TOKEN).build()
-
+    if app.job_queue is None:
+        raise RuntimeError(
+            "❌ JobQueue не ініціалізовано. "
+            "Перевір APScheduler / python-telegram-bot версію."
+        )
+        
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_queue))
 
     # 🔁 Перевірка змін кожні 20 хв
- if app.job_queue is None:
-    raise RuntimeError("JobQueue не доступний")
-
-app.job_queue.run_repeating(
+    app.job_queue.run_repeating(
     check_updates,
     interval=1200,
     first=60
-)
+    )
 
     # 🌅 Ранковий звіт о 05:00 (Київ)
-app.job_queue.run_daily(
+    app.job_queue.run_daily(
     morning_report,
     time=time(hour=5, minute=0)
-)
+    )
 
     print("🤖 Бот запущений")
     app.run_polling()
@@ -181,4 +183,5 @@ app.job_queue.run_daily(
 
 if __name__ == "__main__":
     main()
+
 
