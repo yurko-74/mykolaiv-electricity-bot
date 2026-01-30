@@ -160,17 +160,20 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_queue))
 
     # 🔁 Перевірка змін кожні 20 хв
-    app.job_queue.run_repeating(
-        check_updates,
-        interval=1200,
-        first=60
-    )
+ if app.job_queue is None:
+    raise RuntimeError("JobQueue не доступний")
+
+app.job_queue.run_repeating(
+    check_updates,
+    interval=1200,
+    first=60
+)
 
     # 🌅 Ранковий звіт о 05:00 (Київ)
-    app.job_queue.run_daily(
-        morning_report,
-        time=time(hour=5, minute=0, tzinfo=KYIV_TZ)
-    )
+app.job_queue.run_daily(
+    morning_report,
+    time=time(hour=5, minute=0)
+)
 
     print("🤖 Бот запущений")
     app.run_polling()
@@ -178,3 +181,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
