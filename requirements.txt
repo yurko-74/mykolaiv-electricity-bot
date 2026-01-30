@@ -1,5 +1,7 @@
-python-telegram-bot[job-queue]>=20,<21
+python-telegram-bot==20.7
+APScheduler==3.10.4
 pytz
 requests
 beautifulsoup4
 lxml
+
