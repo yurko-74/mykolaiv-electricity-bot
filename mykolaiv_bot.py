@@ -13,6 +13,8 @@ import os
 from mykolaiv_utils import get_current_status, get_day_schedule
 from mykolaiv_db import init_db, add_user, is_allowed
 
+ADMIN_ID = 676257842  # ← ТУТ ТВОЄ TELEGRAM ID
+
 # ======================
 # НАЛАШТУВАННЯ
 # ======================
@@ -49,13 +51,35 @@ def format_day_table(periods: list) -> str:
 # ======================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    add_user(user.id)
+
+    # повідомлення адміну
+    text = (
+        "👤 *Новий користувач*\n\n"
+        f"ID: `{user.id}`\n"
+        f"Імʼя: {user.full_name}\n"
+        f"Username: @{user.username if user.username else '—'}"
+    )
+
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=text,
+        parse_mode="Markdown"
+    )
+
+    if not is_allowed(user.id):
+        await update.message.reply_text(
+            "⛔ Доступ обмежено.\n"
+            "Адміністратор уже отримав запит."
+        )
+        return
+
     context.user_data.clear()
 
     await update.message.reply_text(
         "Вітаю! Оберіть свою чергу для м. Миколаїв:",
         reply_markup=ReplyKeyboardMarkup(KEYBOARD, resize_keyboard=True),
     )
+
 
 
 async def handle_queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -146,10 +170,25 @@ async def check_updates(context: ContextTypes.DEFAULT_TYPE):
 
             user_last[queue] = status_code
 
+async def admin_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not context.args:
+        await update.message.reply_text("❗ Використання: /add USER_ID")
+        return
+
+    try:
+        user_id = int(context.args[0])
+        add_user(user_id)
+        await update.message.reply_text(f"✅ Користувач {user_id} доданий")
+    except ValueError:
+        await update.message.reply_text("❌ Некоректний ID")
 
 # ======================
 # MAIN
 # ======================
+
 def main():
     init_db()
 
@@ -161,6 +200,7 @@ def main():
         )
         
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("add", admin_add))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_queue))
 
@@ -183,5 +223,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
