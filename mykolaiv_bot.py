@@ -8,8 +8,8 @@ from telegram.ext import (
 )
 from datetime import time
 from pytz import timezone
-KYIV_TZ = timezone("Europe/Kyiv")
 import os
+
 
 from mykolaiv_utils import get_current_status, get_day_schedule
 from mykolaiv_db import init_db, add_user, is_allowed
@@ -20,6 +20,9 @@ ADMIN_ID = 676257842  # ← ТУТ ТВОЄ TELEGRAM ID
 # НАЛАШТУВАННЯ
 # ======================
 TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # додамо в Railway
+PORT = int(os.getenv("PORT", 8080))
+
 KYIV_TZ = timezone("Europe/Kyiv")
 
 KEYBOARD = [
@@ -190,44 +193,35 @@ async def admin_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ======================
 # MAIN
 # ======================
-
 def main():
     init_db()
 
     app = Application.builder().token(TOKEN).build()
-    if app.job_queue is None:
-        raise RuntimeError(
-            "❌ JobQueue не ініціалізовано. "
-            "Перевір APScheduler / python-telegram-bot версію."
-        )
-        
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("add", admin_add))
-    app.add_handler(CommandHandler("reset", reset))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_queue))
 
-    # 🔁 Перевірка змін кожні 20 хв
+    # 🔁 перевірка змін
     app.job_queue.run_repeating(
-    check_updates,
-    interval=1200,
-    first=60
+        check_updates,
+        interval=1200,
+        first=60
     )
 
-    # 🌅 Ранковий звіт о 05:00 (Київ)
+    # 🌅 ранковий звіт РІВНО о 05:00 за Києвом
     app.job_queue.run_daily(
-    morning_report,
-    time=time(hour=5, minute=0, tzinfo=KYIV_TZ),
+        morning_report,
+        time=time(hour=5, minute=0, tzinfo=KYIV_TZ)
     )
 
-    print("🤖 Бот запущений")
-    app.run_polling()
+    print("🤖 Bot started with webhook")
 
-
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=TOKEN,
+        webhook_url=f"{WEBHOOK_URL}/{TOKEN}",
+    )
 if __name__ == "__main__":
     main()
-
-
-
-
-
 
