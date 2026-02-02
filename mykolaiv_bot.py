@@ -38,7 +38,7 @@ def format_day_table(periods: list) -> str:
         "📊 *Графік на сьогодні*",
         "",
         "| Період | Статус |",
-        "|--------|--------|",
+        
     ]
 
     for start, end, status in periods:
@@ -223,6 +223,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
