@@ -8,6 +8,7 @@ from telegram.ext import (
 )
 from datetime import time
 from pytz import timezone
+KYIV_TZ = timezone("Europe/Kyiv")
 import os
 
 from mykolaiv_utils import get_current_status, get_day_schedule
@@ -214,7 +215,7 @@ def main():
     # 🌅 Ранковий звіт о 05:00 (Київ)
     app.job_queue.run_daily(
     morning_report,
-    time=time(hour=5, minute=0)
+    time=time(hour=5, minute=0, tzinfo=KYIV_TZ),
     )
 
     print("🤖 Бот запущений")
@@ -223,6 +224,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
