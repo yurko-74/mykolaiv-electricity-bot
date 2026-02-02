@@ -130,6 +130,7 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # JOBS
 # ======================
 async def morning_report(context: ContextTypes.DEFAULT_TYPE):
+    print("MORNING REPORT TRIGGERED:", datetime.now())
     bot = context.bot
     subs = context.bot_data.get("subscriptions", {})
 
@@ -224,6 +225,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
