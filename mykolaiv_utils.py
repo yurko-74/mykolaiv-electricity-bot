@@ -6,7 +6,7 @@ BASE = "https://off.energy.mk.ua/api"
 STATUS_MAP = {
     "OFF": "🔴 Світла немає",
     "SURE_OFF": "⛔ Аварійне відключення",
-    "PROBABLY_OFF": "⚠️ За графіком можливе відключення",
+    "PROBABLY_OFF": "⚠️ Можливе відключення",
     "ENABLE": "🟢 Є світло",
 }
 
@@ -139,3 +139,4 @@ def get_day_schedule(queue_name: str, start="05:00", end="23:59"):
 
     except Exception:
         return []
+
